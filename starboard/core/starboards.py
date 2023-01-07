@@ -97,13 +97,7 @@ async def _handle_trashed_message(bot: Bot, orig_message: Message) -> None:
             bot,
             config,
             sbmsg_obj,
-            content=None,
-            embeds=[
-                hikari.Embed(
-                    title="Trashed Message",
-                    description="This message was trashed by a moderator.",
-                )
-            ],
+            content="trashed message",
             author_id=orig_message.author_id,
         )
 
@@ -185,12 +179,14 @@ async def _refresh_message_for_starboard(
 
     if action.add and sbmsg_obj is None:
         if orig_msg_obj:
-            content, embed, embeds = await get_sbmsg_content(
+            ret = await get_sbmsg_content(
                 bot, config, orig_msg_obj, orig_msg, points, premium
             )
-            assert embed
+            if not ret:
+                return
+            content, name, avatar = ret
             sbmsg_obj = await _send(
-                bot, config, content, [embed, *embeds], orig_msg.author_id
+                bot, config, content, name, avatar, orig_msg.author_id
             )
             if sbmsg_obj:
                 sbmsg.sb_message_id = sbmsg_obj.id
@@ -211,29 +207,33 @@ async def _refresh_message_for_starboard(
         # edit the message
 
         if orig_msg_obj:
-            content, embed, embeds = await get_sbmsg_content(
+            ret = await get_sbmsg_content(
                 bot, config, orig_msg_obj, orig_msg, points, premium
             )
-            assert embed
+            if not ret:
+                return
+            content, *_ = ret
             if config.link_edits:
                 await _edit(
                     bot,
                     config,
                     sbmsg_obj,
                     content,
-                    [embed, *embeds],
                     orig_msg.author_id,
                 )
             else:
                 await _edit(
-                    bot, config, sbmsg_obj, content, None, orig_msg.author_id
+                    bot, config, sbmsg_obj, content, orig_msg.author_id
                 )
         else:
-            content, *_ = await get_sbmsg_content(
+            ret = await get_sbmsg_content(
                 bot, config, None, orig_msg, points, premium
             )
+            if not ret:
+                return
+            content, *_ = ret
             await _edit(
-                bot, config, sbmsg_obj, content, None, orig_msg.author_id
+                bot, config, sbmsg_obj, content, orig_msg.author_id
             )
 
     else:
@@ -271,7 +271,6 @@ async def _edit(
     config: StarboardConfig,
     message: hikari.Message,
     content: str | None,
-    embeds: list[hikari.Embed] | None,
     author_id: int,
 ) -> None:
     if EDIT_COOLDOWN.update_ratelimit(config.starboard.guild_id):
@@ -285,14 +284,12 @@ async def _edit(
         await wh.edit_message(
             message,
             content=content or hikari.UNDEFINED,
-            embeds=embeds or hikari.UNDEFINED,
             user_mentions=(author_id,),
         )
 
     else:
         await message.edit(
             content=content or hikari.UNDEFINED,
-            embeds=embeds or hikari.UNDEFINED,
             user_mentions=(author_id,),
         )
 
@@ -329,7 +326,8 @@ async def _send(
     bot: Bot,
     config: StarboardConfig,
     content: str,
-    embeds: list[hikari.Embed] | None,
+    name: str,
+    avatar: hikari.URL,
     author_id: int,
 ) -> hikari.Message | None:
     if SEND_COOLDOWN.update_ratelimit(config.starboard.guild_id):
@@ -343,7 +341,8 @@ async def _send(
             assert botuser
             return await webhook.execute(
                 content,
-                embeds=embeds or hikari.UNDEFINED,
+                username=name,
+                avatar_url=avatar,
                 user_mentions=(author_id,),
             )
 
@@ -351,7 +350,6 @@ async def _send(
         return await bot.rest.create_message(
             config.starboard.channel_id,
             content,
-            embeds=embeds or hikari.UNDEFINED,
             user_mentions=(author_id,),
         )
     return None

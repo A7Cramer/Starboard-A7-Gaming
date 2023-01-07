@@ -53,7 +53,7 @@ async def get_sbmsg_content(
     sql_orig_msg: Message,
     points: int,
     premium: bool,
-) -> tuple[str, hikari.Embed | None, list[hikari.Embed]]:
+) -> tuple[str, str, hikari.URL] | None:
     def _display_emoji() -> hikari.UnicodeEmoji | hikari.CustomEmoji | None:
         return (
             stored_to_emoji(config.display_emoji, bot)
@@ -65,36 +65,19 @@ async def get_sbmsg_content(
     forced = config.starboard.id in sql_orig_msg.forced_to
 
     if dis_orig_msg is not None:
-        c, e, es = await embed_message(
+        content, name, avatar = await embed_message(
             bot=bot,
             message=dis_orig_msg,
             guild_id=config.starboard.guild_id,
-            color=config.color,
             display_emoji=_display_emoji(),
             server_profile=config.use_server_profile,
             ping_author=config.ping_author,
             point_count=points,
             frozen=frozen,
             forced=forced,
-            gifs=premium,
-            attachments_list=config.attachments_list,
-            jump_to_message=config.jump_to_message,
-            replied_to=config.replied_to,
         )
         if config.extra_embeds:
-            return c, e, es
-        return c, e, []
+            return content, name, avatar
+        return content, name, avatar
 
-    return (
-        get_raw_message_text(
-            sql_orig_msg.channel_id,
-            sql_orig_msg.author_id,
-            _display_emoji(),
-            config.ping_author,
-            points,
-            frozen,
-            forced,
-        ),
-        None,
-        [],
-    )
+    return None
