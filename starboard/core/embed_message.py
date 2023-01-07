@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING
 
 import hikari
 
-from starboard.constants import EMBED_DESC_LEN, EMBED_FIELD_LEN, ZWS
+from starboard.constants import EMBED_DESC_LEN, EMBED_FIELD_LEN
 from starboard.core.gifs import get_gif_url
 from starboard.utils import rendered_content, trunc_list, truncate
 
@@ -64,55 +64,35 @@ async def embed_message(
     bot: Bot,
     message: hikari.Message,
     guild_id: int,
-    color: int,
     display_emoji: hikari.CustomEmoji | hikari.UnicodeEmoji | None,
     server_profile: bool,
     ping_author: bool,
     point_count: int,
     frozen: bool,
     forced: bool,
-    gifs: bool,
-    attachments_list: bool,
-    jump_to_message: bool,
-    replied_to: bool,
-) -> tuple[str, hikari.Embed, list[hikari.Embed]]:
+) -> tuple[str, str, hikari.URL]:
     name, avatar = await _get_name_and_avatar(
         bot, guild_id, message.author, server_profile
     )
 
-    embed = hikari.Embed(
-        description=_extract_main_content(message),
-        color=color,
-        timestamp=message.created_at,
-    ).set_author(name=name, icon=avatar)
-
-    if attachments_list and (filestr := _extract_file_str(message)):
-        embed.add_field(name=ZWS, value=filestr)
-
-    if jump_to_message:
-        embed.add_field(
-            name=ZWS, value=f"[Go to Message]({message.make_link(guild_id)})"
-        )
-
-    image_urls = await _extract_images(bot, message, gifs)
-    if image_urls:
-        embed.set_image(image_urls[0])
-
-    if replied_to:
-        await _extract_reply(bot, message, guild_id, server_profile, embed)
+    main_message_content = _extract_main_content(message) or ""
+    top_content = get_raw_message_text(
+        message.channel_id,
+        message.author.id,
+        display_emoji,
+        ping_author,
+        point_count,
+        frozen,
+        forced,
+    )
+    attachment_urls = ""
+    for a in message.attachments:
+        attachment_urls += f"\n{a.url}"
 
     return (
-        get_raw_message_text(
-            message.channel_id,
-            message.author.id,
-            display_emoji,
-            ping_author,
-            point_count,
-            frozen,
-            forced,
-        ),
-        embed,
-        _extract_extra_embeds(message),
+        f"{top_content}\n{main_message_content}\n{attachment_urls}",
+        name,
+        avatar,
     )
 
 
